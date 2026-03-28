@@ -4,9 +4,7 @@ export default function RedactedPreview({ text }) {
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-6">
-      <h3 className="text-sm font-semibold text-white mb-4">
-        Redacted Text
-      </h3>
+      <h3 className="text-sm font-semibold text-white mb-4">Redacted Text</h3>
       <div className="bg-gray-900/50 p-4 rounded border border-gray-700 font-mono text-sm text-gray-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
         {isLonger ? text.substring(0, maxLength) + "…" : text}
       </div>

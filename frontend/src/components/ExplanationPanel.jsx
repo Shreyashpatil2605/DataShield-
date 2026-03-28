@@ -52,7 +52,9 @@ export default function ExplanationPanel({ reasons, explanations, allowed }) {
                     {exp.severity.toUpperCase()}
                   </span>
                   <div className="flex-1">
-                    <p className="font-semibold text-sm text-white">{exp.what}</p>
+                    <p className="font-semibold text-sm text-white">
+                      {exp.what}
+                    </p>
                     <p className="text-sm mt-1 text-gray-300">{exp.why}</p>
                     <p className="text-xs mt-2 text-gray-400">
                       Relevant law: {exp.law}

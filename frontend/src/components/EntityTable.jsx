@@ -6,9 +6,7 @@ export default function EntityTable({ entities }) {
   return (
     <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 overflow-hidden">
       <div className="px-6 py-4 bg-gray-900/50 border-b border-gray-700">
-        <h3 className="text-sm font-semibold text-white">
-          Detected Entities
-        </h3>
+        <h3 className="text-sm font-semibold text-white">Detected Entities</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
