@@ -1,0 +1,31 @@
+# PII Guard — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# API
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+slowapi>=0.1.9  # Rate limiting
+
+# ML / NLP
+transformers>=4.40.0
+torch>=2.2.0
+# For faster CPU inference (optional but recommended):
+# optimum[onnxruntime]>=1.19.0
+
+# OCR
+easyocr>=1.7.1
+Pillow>=10.3.0
+PyMuPDF>=1.24.0        # PDF support (fitz)
+pytesseract>=0.3.10    # fallback OCR
+
+# CLI
+typer>=0.12.0
+rich>=13.7.0
+
+# Utilities
+python-dotenv>=1.0.0
+httpx>=0.27.0          # for tests
+
+# Optional: OpenCV for image pre-processing
+# opencv-python-headless>=4.9.0
