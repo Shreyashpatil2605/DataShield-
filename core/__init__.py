@@ -6,6 +6,7 @@ from .redactor import redact_text, RedactionMode
 from .risk_engine import compute_risk_score
 from .context_classifier import classify
 from .explanatory_engine import explain
+from .pdf_redactor import redact_pdf, get_redaction_summary
 
 __all__ = [
     "extract_text",
@@ -16,4 +17,7 @@ __all__ = [
     "compute_risk_score",
     "classify",
     "explain",
+    "redact_pdf",
+    "get_redaction_summary",
 ]
+

@@ -1,3 +1,5 @@
+import { jsPDF } from "jspdf";
+
 // EntityTable.jsx
 export function EntityTable({ entities }) {
   if (!entities?.length) return null;
@@ -80,13 +82,51 @@ export function RedactedPreview({ text }) {
 }
 
 // ActionBar.jsx
-export function ActionBar({ redactedText, filename }) {
+export function ActionBar({ redactedText, filename, redactedPdfId }) {
   const downloadRedacted = () => {
-    const blob = new Blob([redactedText], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${filename?.replace(/\.[^.]+$/, "") || "document"}_redacted.txt`;
-    a.click();
+    if (redactedPdfId) {
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const element = document.createElement("a");
+      element.href = `${API_BASE}/download/${redactedPdfId}`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      return;
+    }
+    try {
+      const doc = new jsPDF();
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+
+      const name = filename
+        ? filename.replace(/\.[^/.]+$/, "") + "_redacted.pdf"
+        : "redacted_output.pdf";
+
+      const margin = 15;
+      const pageHeight = doc.internal.pageSize.height;
+      const maxLineWidth = 180;
+      const lineHeight = 6;
+      
+      const splitText = doc.splitTextToSize(redactedText || "", maxLineWidth);
+
+      let y = margin;
+      for (let i = 0; i < splitText.length; i++) {
+        if (y + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(splitText[i], margin, y);
+        y += lineHeight;
+      }
+      doc.save(name);
+    } catch (err) {
+      console.error("PDF generation failed, falling back to TXT download:", err);
+      const blob = new Blob([redactedText], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${filename?.replace(/\.[^.]+$/, "") || "document"}_redacted.txt`;
+      a.click();
+    }
   };
 
   return (

@@ -9,9 +9,9 @@ import tempfile
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -26,6 +26,7 @@ from core import (
     RedactionMode,
     classify,
     explain,
+    redact_pdf,
 )
 
 # Configure logging
@@ -79,6 +80,9 @@ def health():
     return {"status": "ok", "service": "pii-guard"}
 
 
+REDACTED_FILES = {}
+
+
 @app.post("/analyze", summary="Analyze a file for PII")
 @limiter.limit("30/minute")
 async def analyze(
@@ -94,6 +98,7 @@ async def analyze(
     - Redacted version of the text
     - Allow/block decision
     - Audit log of all substitutions
+    - For PDFs, a redacted file download ID
     """
     tmp_path = None
     try:
@@ -144,6 +149,32 @@ async def analyze(
         decision = classify(entities, allow_override=False)
         explanations = explain(entities)
 
+        # In-place layout-preserving PDF Redaction/Masking
+        redacted_pdf_id = None
+        if ext == ".pdf":
+            try:
+                import uuid
+                # Create a temporary file to save the redacted PDF
+                fd, out_path = tempfile.mkstemp(suffix="_redacted.pdf")
+                os.close(fd)
+                
+                # Perform the in-place PDF redaction preserving formatting
+                redact_pdf(
+                    pdf_path=tmp_path,
+                    entities=entities,
+                    output_path=out_path,
+                    mode=mode_enum,
+                )
+                
+                redacted_pdf_id = uuid.uuid4().hex
+                REDACTED_FILES[redacted_pdf_id] = {
+                    "path": out_path,
+                    "filename": f"{Path(file.filename).stem}_redacted.pdf"
+                }
+                logger.info(f"Redacted PDF generated successfully: {out_path} (id={redacted_pdf_id})")
+            except Exception as pdf_err:
+                logger.error(f"Failed to redact PDF: {pdf_err}", exc_info=True)
+
         logger.info(f"Analysis complete: {file.filename} - {len(entities)} entities found")
         
         return {
@@ -154,6 +185,7 @@ async def analyze(
             "explanations":   explanations,
             "redacted_text":  redacted,
             "audit_log":      audit,
+            "redacted_pdf_id": redacted_pdf_id,
         }
     except HTTPException:
         raise
@@ -167,6 +199,49 @@ async def analyze(
                 os.unlink(tmp_path)
             except Exception as e:
                 logger.error(f"Failed to cleanup temp file {tmp_path}: {e}")
+
+
+@app.get("/download/{file_id}", summary="Download redacted PDF file")
+async def download_redacted_file(file_id: str, background_tasks: BackgroundTasks):
+    """
+    Download a previously generated redacted PDF file.
+    The file is deleted from the server immediately after download.
+    """
+    file_info = REDACTED_FILES.get(file_id)
+    if not file_info:
+        logger.warning(f"Download requested for non-existent file_id: {file_id}")
+        raise HTTPException(
+            status_code=404,
+            detail="File not found or link has expired."
+        )
+        
+    file_path = file_info["path"]
+    download_filename = file_info["filename"]
+    
+    if not os.path.exists(file_path):
+        logger.warning(f"Redacted file missing from disk: {file_path}")
+        raise HTTPException(
+            status_code=404,
+            detail="File not found on disk."
+        )
+        
+    def remove_file(path: str):
+        try:
+            if os.path.exists(path):
+                os.unlink(path)
+                logger.info(f"Successfully cleaned up temporary redacted file: {path}")
+        except Exception as e:
+            logger.error(f"Error deleting temp file {path}: {e}")
+            
+    background_tasks.add_task(remove_file, file_path)
+    # Remove from dict so it cannot be accessed again
+    REDACTED_FILES.pop(file_id, None)
+    
+    return FileResponse(
+        file_path,
+        media_type="application/pdf",
+        filename=download_filename,
+    )
 
 
 @app.post("/analyze/text", summary="Analyze raw text for PII")

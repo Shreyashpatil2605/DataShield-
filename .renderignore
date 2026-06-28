@@ -1,0 +1,56 @@
+# Build cache and temporary files
+
+**/**pycache**
+**/.pytest_cache \*_/.cache
+_.pyc
+\*.pyo
+.git
+.gitignore
+.env
+.env.local
+
+# Node modules cache
+
+node_modules
+
+# IDE and editor files
+
+.vscode
+.idea
+_.swp
+_.swo
+_.sublime-project
+_.sublime-workspace
+
+# Documentation (not needed in production)
+
+\*.md
+docs/
+
+# Test files (optional - keep if you want to verify tests on Render)
+
+tests/
+
+# Development configuration
+
+.flake8
+.pylintrc
+pytest.ini
+tailwind.config.js
+postcss.config.js
+
+# Docker files (not needed for Render deployment)
+
+docker/
+docker-compose.yml
+Dockerfile
+
+# Frontend development files
+
+frontend/node_modules
+frontend/.env
+frontend/.env.local
+
+# macOS files
+
+.DS_Store

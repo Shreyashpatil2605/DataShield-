@@ -179,3 +179,28 @@ def test_explain_deduplicates_labels():
     explanations = explain(entities)
     email_entries = [e for e in explanations if e["label"] == "EMAIL"]
     assert len(email_entries) == 1
+
+
+# ---------------------------------------------------------------------------
+# Smart Masking
+# ---------------------------------------------------------------------------
+
+def test_smart_masking_values():
+    from core.redactor import mask_text_value
+    
+    # Email
+    assert mask_text_value("john.doe@gmail.com", "EMAIL") == "jo******@gmail.com"
+    assert mask_text_value("ab@gmail.com", "EMAIL") == "**@gmail.com"
+    
+    # Phone IN / INTL
+    assert mask_text_value("+91 98765 43210", "PHONE_IN") == "+91 ***** ***10"
+    assert mask_text_value("9876543210", "PHONE_IN") == "98******10"
+    
+    # Credit Card
+    assert mask_text_value("1234-5678-9012-3456", "CREDIT_CARD") == "1234-****-****-3456"
+    
+    # Aadhaar
+    assert mask_text_value("1234 5678 9012", "AADHAAR") == "**** **** 9012"
+    
+    # Name
+    assert mask_text_value("John Doe", "PERSON") == "J*** D**"

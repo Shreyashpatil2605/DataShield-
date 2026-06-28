@@ -1,0 +1,51 @@
+services:
+  # Backend API Service
+  - type: web
+    name: pii-guard-api
+    runtime: python
+    pythonVersion: "3.11"
+
+    # Build Configuration: Optimized for Render constraints
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
+
+    # Health Check
+    healthCheckPath: /health
+    healthCheckInterval: 30
+
+    # Environment Configuration
+    envVars:
+      - key: CORS_ORIGINS
+        scope: build
+        value: https://pii-guard-frontend.onrender.com,http://localhost:3000,http://localhost:5173
+      - key: PYTHONUNBUFFERED
+        scope: build
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        scope: build
+        value: "1"
+
+    # Resource Configuration
+    plan: free
+
+    # Preload settings
+    preDeployCommand: |-
+      echo "Installing dependencies..."
+      pip install --no-cache-dir -r requirements.txt
+      echo "Build complete. NER model will load on first request."
+
+  # Frontend Static Site
+  - type: static
+    name: pii-guard-frontend
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+
+    # SPA Routing Configuration
+    routes:
+      - path: /*
+        dest: /index.html
+
+    # Environment Configuration
+    envVars:
+      - key: VITE_API_URL
+        value: https://pii-guard-api.onrender.com
