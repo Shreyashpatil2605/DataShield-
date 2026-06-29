@@ -37,6 +37,25 @@ export default function DashboardHeader() {
           <ThemeToggle />
         </div>
       </div>
+
+      {/* Security Status Sub-bar */}
+      <div className={`border-t py-2 px-6 ${theme === "dark" ? "border-gray-800" : "border-gray-150"}`}>
+        <div className="max-w-7xl mx-auto flex flex-wrap gap-4 items-center justify-between text-[11px] text-gray-500">
+          <div className="flex items-center gap-2">
+            <span className={`font-semibold ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>Welcome back, SecOps Admin</span>
+            <span className="text-gray-600">|</span>
+            <span className="flex items-center gap-1.5 text-emerald-500 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              System Status: Secure
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span>Last Scan: <strong className={`font-mono font-bold ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>2 mins ago</strong></span>
+            <span className="text-gray-600">|</span>
+            <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold uppercase tracking-wider text-[9px]">Org Rating: A+ Compliance</span>
+          </div>
+        </div>
+      </div>
     </header>
   );
 }

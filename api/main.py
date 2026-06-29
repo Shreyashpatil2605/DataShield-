@@ -5,9 +5,13 @@ Docs at:  http://localhost:8000/docs
 """
 
 import os
+import re
 import tempfile
 import logging
+import unicodedata
 from pathlib import Path
+from datetime import datetime, timedelta
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +66,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 ALLOWED_EXTENSIONS = {
@@ -69,6 +74,63 @@ ALLOWED_EXTENSIONS = {
 }
 MAX_FILE_SIZE_MB = 20
 MAX_TEXT_LENGTH = 100_000  # ~20KB of text
+
+
+def sanitize_filename(filename: str) -> str:
+    if not filename:
+        return "document"
+    
+    p = Path(filename)
+    stem = p.stem
+    suffix = p.suffix.lower()
+    
+    # Normalize unicode (NFKD) and strip non-ASCII
+    normalized = unicodedata.normalize("NFKD", stem)
+    ascii_str = normalized.encode("ascii", "ignore").decode("ascii")
+    
+    # Fallback if normalization cleared out everything
+    if not ascii_str.strip():
+        ascii_str = stem
+        
+    # Remove invalid characters
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", ascii_str)
+    
+    # Collapse multiple spaces or underscores
+    cleaned = re.sub(r'[\s_]+', "_", cleaned)
+    
+    # Strip trailing/leading spaces, dots, and underscores
+    cleaned = cleaned.strip(". _")
+    
+    if not cleaned:
+        cleaned = "document"
+        
+    if len(cleaned) > 150:
+        cleaned = cleaned[:150].rstrip(". _")
+        
+    return f"{cleaned}{suffix}"
+
+
+REDACTED_FILES = {}
+
+
+def cleanup_expired_files():
+    """Deletes temporary files older than 30 minutes."""
+    now = datetime.utcnow()
+    expired_ids = []
+    for file_id, info in list(REDACTED_FILES.items()):
+        created_at = info.get("created_at")
+        if created_at and (now - created_at) > timedelta(minutes=30):
+            path = info.get("path")
+            try:
+                if path and os.path.exists(path):
+                    os.unlink(path)
+                    logger.info(f"Cleaned up expired file: {path}")
+            except Exception as e:
+                logger.error(f"Error deleting expired file {path}: {e}")
+            expired_ids.append(file_id)
+            
+    for file_id in expired_ids:
+        REDACTED_FILES.pop(file_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -79,8 +141,6 @@ MAX_TEXT_LENGTH = 100_000  # ~20KB of text
 def health():
     return {"status": "ok", "service": "pii-guard"}
 
-
-REDACTED_FILES = {}
 
 
 @app.post("/analyze", summary="Analyze a file for PII")
@@ -102,13 +162,13 @@ async def analyze(
     """
     tmp_path = None
     try:
+        cleanup_expired_files()
         logger.info(f"Analyze request: file={file.filename}, mode={mode}")
         
         # Validate filename
         if not file.filename:
             logger.warning("Upload attempt with no filename")
             raise HTTPException(status_code=400, detail="Filename is required")
-        
         
         ext = Path(file.filename).suffix.lower()
         if ext not in ALLOWED_EXTENSIONS:
@@ -168,10 +228,14 @@ async def analyze(
                 
                 redacted_pdf_id = uuid.uuid4().hex
                 REDACTED_FILES[redacted_pdf_id] = {
+                    "id": redacted_pdf_id,
                     "path": out_path,
-                    "filename": f"{Path(file.filename).stem}_redacted.pdf"
+                    "original_filename": file.filename,
+                    "created_at": datetime.utcnow(),
+                    "mime_type": "application/pdf",
+                    "size": os.path.getsize(out_path)
                 }
-                logger.info(f"Redacted PDF generated successfully: {out_path} (id={redacted_pdf_id})")
+                logger.info(f"PDF Redaction complete. Original Filename: {file.filename}, Stored ID: {redacted_pdf_id}, Output Path: {out_path}")
             except Exception as pdf_err:
                 logger.error(f"Failed to redact PDF: {pdf_err}", exc_info=True)
 
@@ -207,6 +271,7 @@ async def download_redacted_file(file_id: str, background_tasks: BackgroundTasks
     Download a previously generated redacted PDF file.
     The file is deleted from the server immediately after download.
     """
+    cleanup_expired_files()
     file_info = REDACTED_FILES.get(file_id)
     if not file_info:
         logger.warning(f"Download requested for non-existent file_id: {file_id}")
@@ -216,7 +281,12 @@ async def download_redacted_file(file_id: str, background_tasks: BackgroundTasks
         )
         
     file_path = file_info["path"]
-    download_filename = file_info["filename"]
+    original_name = file_info.get("original_filename") or "document.pdf"
+    
+    # Sanitize and construct output filename preserving extension
+    sanitized = sanitize_filename(original_name)
+    p = Path(sanitized)
+    redacted_name = f"{p.stem}_redacted{p.suffix}"
     
     if not os.path.exists(file_path):
         logger.warning(f"Redacted file missing from disk: {file_path}")
@@ -237,10 +307,16 @@ async def download_redacted_file(file_id: str, background_tasks: BackgroundTasks
     # Remove from dict so it cannot be accessed again
     REDACTED_FILES.pop(file_id, None)
     
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(redacted_name)}"
+    }
+    
+    logger.info(f"Serving download. Original name: {original_name}, Sanitized: {sanitized}, Redacted name: {redacted_name}, Header value: {headers['Content-Disposition']}")
+    
     return FileResponse(
         file_path,
         media_type="application/pdf",
-        filename=download_filename,
+        headers=headers,
     )
 
 

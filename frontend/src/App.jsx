@@ -211,6 +211,8 @@ export default function App() {
             <PIIDetectionResult
               entities={result.entities}
               decision={result.decision}
+              redactedText={result.redacted_text}
+              filename={result.filename}
             />
             <RiskBreakdownBars breakdown={result.decision.risk.breakdown} />
             <EntityHeatmap entities={result.entities} />
@@ -225,6 +227,8 @@ export default function App() {
               redactedText={result.redacted_text}
               filename={result.filename}
               redactedPdfId={result.redacted_pdf_id}
+              entities={result.entities}
+              decision={result.decision}
             />
           </main>
         )}

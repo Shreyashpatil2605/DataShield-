@@ -1,199 +1,131 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 export default function SpeedometerGauge({ score, level }) {
-  const canvasRef = useRef(null);
+  const { theme } = useTheme();
+  const [animatedScore, setAnimatedScore] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 1000; // 1 second
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeProgress = progress * (2 - progress); // easeOutQuad
+      setAnimatedScore(Math.floor(easeProgress * score));
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setAnimatedScore(score);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [score]);
 
   // Color mapping for risk levels
   const levelColors = {
-    safe: "#22c55e", // green
-    low: "#facc15", // yellow
-    medium: "#fb923c", // orange
-    high: "#ef4444", // red
-    critical: "#991b1b", // dark red
+    safe: "stroke-emerald-500 text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
+    low: "stroke-yellow-400 text-yellow-400 border-yellow-500/20 bg-yellow-500/5",
+    medium: "stroke-orange-500 text-orange-400 border-orange-500/20 bg-orange-500/5",
+    high: "stroke-red-500 text-red-400 border-red-500/20 bg-red-500/5",
+    critical: "stroke-rose-700 text-rose-500 border-rose-500/20 bg-rose-500/5",
   };
 
-  const getLevelColor = (s) => {
-    if (s <= 20) return levelColors.safe;
-    if (s <= 40) return levelColors.low;
-    if (s <= 60) return levelColors.medium;
-    if (s <= 80) return levelColors.high;
-    return levelColors.critical;
-  };
+  const currentLevelClass = levelColors[level] || levelColors.safe;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
-    const centerX = width / 2;
-    const centerY = height * 0.7;
-    const radius = 90;
-
-    // Clear canvas
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw outer circle border
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw colored gauge segments
-    const segments = [
-      { color: "#22c55e", start: 0, end: 20, label: "Safe" },
-      { color: "#facc15", start: 20, end: 40, label: "Low" },
-      { color: "#fb923c", start: 40, end: 60, label: "Medium" },
-      { color: "#ef4444", start: 60, end: 80, label: "High" },
-      { color: "#991b1b", start: 80, end: 100, label: "Critical" },
-    ];
-
-    segments.forEach((segment) => {
-      const startAngle = Math.PI + (segment.start / 100) * Math.PI;
-      const endAngle = Math.PI + (segment.end / 100) * Math.PI;
-
-      // Draw segment
-      ctx.fillStyle = segment.color;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      ctx.lineTo(centerX, centerY);
-      ctx.fill();
-
-      // Draw segment border
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      ctx.lineTo(centerX, centerY);
-      ctx.stroke();
-    });
-
-    // Draw outer ring
-    ctx.strokeStyle = "#1f2937";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw tick marks and labels
-    for (let i = 0; i <= 100; i += 20) {
-      const angle = Math.PI + (i / 100) * Math.PI;
-      const x1 = centerX + Math.cos(angle) * radius;
-      const y1 = centerY + Math.sin(angle) * radius;
-      const x2 = centerX + Math.cos(angle) * (radius + 12);
-      const y2 = centerY + Math.sin(angle) * (radius + 12);
-
-      ctx.strokeStyle = "#1f2937";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-
-      // Draw number labels
-      const labelX = centerX + Math.cos(angle) * (radius + 28);
-      const labelY = centerY + Math.sin(angle) * (radius + 28);
-      ctx.fillStyle = "#374151";
-      ctx.font = "bold 13px Arial, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(i, labelX, labelY);
-    }
-
-    // Draw needle
-    const needleAngle = Math.PI + (score / 100) * Math.PI;
-    const needleLength = radius * 0.75;
-    const needleX = centerX + Math.cos(needleAngle) * needleLength;
-    const needleY = centerY + Math.sin(needleAngle) * needleLength;
-
-    // Needle glow effect
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Draw thick bold black needle
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 12;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(needleX, needleY);
-    ctx.stroke();
-
-    // Draw needle highlight (lighter shade on top)
-    ctx.shadowColor = "transparent";
-    ctx.strokeStyle = "#333333";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(centerX - 2, centerY - 2);
-    ctx.lineTo(needleX - 2, needleY - 2);
-    ctx.stroke();
-
-    // Draw center circle
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 12, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "#1f2937";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 12, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw inner circle - larger and more visible
-    ctx.fillStyle = getLevelColor(score);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Draw score display at bottom
-    ctx.fillStyle = getLevelColor(score);
-    ctx.font = "bold 56px Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(score, centerX, centerY + 35);
-
-    // Draw score label
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "bold 14px Arial, sans-serif";
-    ctx.fillText("Risk Score", centerX, centerY + 100);
-  }, [score, level]);
+  // Circular progress calculations
+  const radius = 70;
+  const stroke = 12;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (animatedScore / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <canvas
-        ref={canvasRef}
-        width={300}
-        height={280}
-        className="drop-shadow-lg"
-      />
-      <div className="flex gap-3 justify-center flex-wrap text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-          <span className="text-gray-600">Safe</span>
+    <div className="flex flex-col md:flex-row items-center justify-around gap-6 py-4">
+      {/* SVG Circular Progress Ring */}
+      <div className="relative w-44 h-44 flex items-center justify-center">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
+          {/* Track Circle */}
+          <circle
+            cx="80"
+            cy="80"
+            r={radius}
+            className={`${
+              theme === "dark" ? "stroke-gray-800" : "stroke-gray-200"
+            }`}
+            strokeWidth={stroke}
+            fill="transparent"
+          />
+          {/* Animated Glow layer (dark mode only) */}
+          {theme === "dark" && (
+            <circle
+              cx="80"
+              cy="80"
+              r={radius}
+              className={`${currentLevelClass.split(" ")[0]} opacity-40 blur-[4px]`}
+              strokeWidth={stroke + 2}
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+            />
+          )}
+          {/* Active Progress Circle */}
+          <circle
+            cx="80"
+            cy="80"
+            r={radius}
+            className={`${currentLevelClass.split(" ")[0]} transition-all duration-100`}
+            strokeWidth={stroke}
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            fill="transparent"
+          />
+        </svg>
+
+        {/* Center Text Indicator */}
+        <div className="absolute flex flex-col items-center justify-center text-center">
+          <span className={`text-4xl font-extrabold font-mono tracking-tighter ${
+            theme === "dark" ? "text-white" : "text-gray-900"
+          }`}>
+            {animatedScore}%
+          </span>
+          <span className={`text-[10px] uppercase font-bold tracking-widest ${
+            theme === "dark" ? "text-gray-400" : "text-gray-500"
+          }`}>
+            Risk Index
+          </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-          <span className="text-gray-600">Low</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-orange-400" />
-          <span className="text-gray-600">Medium</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-          <span className="text-gray-600">High</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-900" />
-          <span className="text-gray-600">Critical</span>
-        </div>
+      </div>
+
+      {/* Cyber Security Stats Panel */}
+      <div className="grid grid-cols-2 gap-4 flex-1 w-full max-w-xs">
+        {[
+          { label: "Protection Level", value: String(level).toUpperCase(), color: currentLevelClass.split(" ")[1] },
+          { label: "Blocked Uploads", value: "3 Events", color: "text-rose-400" },
+          { label: "Detection Accuracy", value: "99.8%", color: "text-blue-400 font-mono" },
+          { label: "Compliance Score", value: "94%", color: "text-purple-400 font-mono" }
+        ].map((item, idx) => (
+          <div
+            key={idx}
+            className={`p-3 rounded-lg border ${
+              theme === "dark" ? "bg-gray-950/40 border-gray-800" : "bg-gray-50 border-gray-200"
+            }`}
+          >
+            <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${
+              theme === "dark" ? "text-gray-500" : "text-gray-400"
+            }`}>
+              {item.label}
+            </div>
+            <div className={`text-sm font-extrabold ${item.color}`}>
+              {item.value}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
